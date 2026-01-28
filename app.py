@@ -65,7 +65,7 @@ if OPENCV_AVAILABLE:
                 "Local execution REQUIRES this file."
             )
         )
-        st.stop()
+       
 
 # ================== Emotion Labels ==================
 emotion_labels = ['Angry','Disgust','Fear','Happy','Neutral','Sad','Surprise']
