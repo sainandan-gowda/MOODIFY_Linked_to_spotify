@@ -1,5 +1,4 @@
 import streamlit as st
-import cv2
 import numpy as np
 from tensorflow.keras.models import load_model
 from collections import Counter
@@ -7,24 +6,35 @@ import random
 import time
 import emoji
 
+# ================== SAFE OpenCV IMPORT ==================
+try:
+    import cv2
+    OPENCV_AVAILABLE = True
+except:
+    OPENCV_AVAILABLE = False
+
 # ================== Page Config ==================
-st.set_page_config(page_title="Moodify", page_icon=emoji.emojize(":musical_note:"))
+st.set_page_config(
+    page_title="MOODIFY",
+    page_icon=emoji.emojize(":musical_note:"),
+    layout="centered"
+)
 
 # ================== Title & Logo ==================
 st.markdown(
     """
-    <div style='text-align:center; margin-bottom:20px;'>
-        <img src='Gemini_Generated_Image_455dgr455dgr455d.jpg' 
-             width='120' 
+    <div style='text-align:center; margin-bottom:10px;'>
+        <img src='Gemini_Generated_Image_455dgr455dgr455d.jpg'
+             width='110'
              style='border-radius:50%; display:block; margin-left:auto; margin-right:auto;'>
-        <h1 style='margin-top:10px;'>MOODIFY</h1>
-        <h3>A musical mind reader</h3>
+        <h1 style='margin-top:8px;'>MOODIFY</h1>
+        <h4>A musical mind reader</h4>
     </div>
     """,
     unsafe_allow_html=True
 )
 
-# ================== Playlist URLs ==================
+# ================== Spotify Playlists ==================
 mood_playlists = {
     "Happy": "https://open.spotify.com/playlist/4B5UJTEyEkofFmBWUXNhBW",
     "Sad": "https://open.spotify.com/playlist/6TyTwY1VKvWmCznL4hHa4R",
@@ -32,31 +42,30 @@ mood_playlists = {
     "Surprise": "https://open.spotify.com/playlist/4oV4bV24OtqZGB2ixowB26"
 }
 
-# ================== Load Emotion Model ==================
+# ================== Load Emotion Model (Optional) ==================
 try:
     model = load_model("emotion_cnn.h5")
-    st.success(emoji.emojize(":white_check_mark: Emotion model loaded successfully!"))
+    MODEL_AVAILABLE = True
 except:
-    st.warning(emoji.emojize(":warning: Model not found. Using random moods."))
-    model = None
+    MODEL_AVAILABLE = False
 
 emotion_labels = ['Angry','Disgust','Fear','Happy','Neutral','Sad','Surprise']
 label_map = {
     'Angry': 'Sad',
-    'Disgust': 'Surprise',
-    'Fear': 'Surprise',
+    'Disgust': 'Sad',
+    'Fear': 'Sad',
     'Happy': 'Happy',
     'Neutral': 'Neutral',
     'Sad': 'Sad',
     'Surprise': 'Surprise'
 }
 
-# ================== Emoji + Messages ==================
+# ================== Emoji & Messages ==================
 emoji_map = {
-    "Happy": emoji.emojize(":party_popper:"),
-    "Sad": emoji.emojize(":cloud_with_rain:"),
-    "Neutral": emoji.emojize(":relieved_face:"),
-    "Surprise": emoji.emojize(":astonished_face:")
+    "Happy": "🎉",
+    "Sad": "🌧️",
+    "Neutral": "😌",
+    "Surprise": "😲"
 }
 
 message_map = {
@@ -82,14 +91,51 @@ st.markdown("""
 }
 .emoji-container {
     text-align:center;
-    font-size:70px;
-    margin-top:20px;
+    font-size:65px;
+    margin-top:15px;
 }
 </style>
 """, unsafe_allow_html=True)
 
-# ================== Webcam Emotion Detection ==================
+# =====================================================
+# 🔼 UI AT THE TOP – MANUAL MOOD SELECTION
+# =====================================================
+st.markdown("### 🎶 Choose your mood")
+cols = st.columns(4)
+
+for col, mood in zip(cols, mood_playlists.keys()):
+    with col:
+        if st.button(mood):
+            st.success(f"🎵 {mood} mode selected")
+            st.markdown(f"<div class='emoji-container'>{emoji_map[mood]}</div>", unsafe_allow_html=True)
+            st.markdown(f"<h4 style='text-align:center;'>{message_map[mood]}</h4>", unsafe_allow_html=True)
+
+            st.markdown(
+                f"""
+                <a href="{mood_playlists[mood]}" target="_blank">
+                    <button style="
+                        background:#1DB954;
+                        color:white;
+                        padding:10px 18px;
+                        font-size:16px;
+                        border:none;
+                        border-radius:8px;">
+                        🎧 Play on Spotify
+                    </button>
+                </a>
+                """,
+                unsafe_allow_html=True
+            )
+
+st.markdown("---")
+
+# =====================================================
+# 🎬 WEBCAM SECTION (LOGIC UNCHANGED)
+# =====================================================
 def detect_emotion_webcam(duration=5):
+    if not OPENCV_AVAILABLE:
+        return random.choice(list(mood_playlists.keys()))
+
     cap = cv2.VideoCapture(0)
     if not cap.isOpened():
         return random.choice(list(mood_playlists.keys()))
@@ -98,11 +144,11 @@ def detect_emotion_webcam(duration=5):
         cv2.data.haarcascades + 'haarcascade_frontalface_default.xml'
     )
 
-    collected_emotions = []
-    cam_box = st.empty()
-    start_time = time.time()
+    collected = []
+    frame_box = st.empty()
+    start = time.time()
 
-    while time.time() - start_time < duration:
+    while time.time() - start < duration:
         ret, frame = cap.read()
         if not ret:
             break
@@ -117,48 +163,40 @@ def detect_emotion_webcam(duration=5):
             roi = roi / 255.0
             roi = np.reshape(roi, (1, 48, 48, 1))
 
-            if model:
+            if MODEL_AVAILABLE:
                 preds = model.predict(roi, verbose=0)
-                raw_emotion = emotion_labels[np.argmax(preds)]
+                raw = emotion_labels[np.argmax(preds)]
             else:
-                raw_emotion = random.choice(emotion_labels)
+                raw = random.choice(emotion_labels)
 
-            final_emotion = label_map[raw_emotion]
-            collected_emotions.append(final_emotion)
+            final = label_map[raw]
+            collected.append(final)
 
-            cv2.rectangle(frame, (x,y), (x+w,y+h), (0,255,0), 2)
-            cv2.putText(frame, final_emotion, (x, y-10),
-                        cv2.FONT_HERSHEY_SIMPLEX, 0.9, (0,255,0), 2)
-
-        cam_box.image(cv2.cvtColor(frame, cv2.COLOR_BGR2RGB), width=300)
+        frame_box.image(cv2.cvtColor(frame, cv2.COLOR_BGR2RGB), width=280)
 
     cap.release()
-    cam_box.empty()
+    frame_box.empty()
 
-    if collected_emotions:
-        return Counter(collected_emotions).most_common(1)[0][0]
+    if collected:
+        return Counter(collected).most_common(1)[0][0]
     return random.choice(list(mood_playlists.keys()))
 
-# ================== Detect Mood Button ==================
-if st.button("🎬 Detect Mood via Webcam"):
-    final_emotion = detect_emotion_webcam()
-    playlist_url = mood_playlists[final_emotion]
-
-    st.success(f"🎭 Detected Mood: {final_emotion}")
-    st.markdown(f"<div class='emoji-container'>{emoji_map[final_emotion]}</div>", unsafe_allow_html=True)
-    st.markdown(f"<h3 style='text-align:center;'>{message_map[final_emotion]}</h3>", unsafe_allow_html=True)
+if OPENCV_AVAILABLE and st.button("🎬 Detect Mood via Webcam"):
+    mood = detect_emotion_webcam()
+    st.success(f"🎭 Detected Mood: {mood}")
+    st.markdown(f"<div class='emoji-container'>{emoji_map[mood]}</div>", unsafe_allow_html=True)
+    st.markdown(f"<h4 style='text-align:center;'>{message_map[mood]}</h4>", unsafe_allow_html=True)
 
     st.markdown(
         f"""
-        <a href="{playlist_url}" target="_blank">
+        <a href="{mood_playlists[mood]}" target="_blank">
             <button style="
                 background:#1DB954;
                 color:white;
                 padding:12px 22px;
                 font-size:18px;
                 border:none;
-                border-radius:10px;
-                cursor:pointer;">
+                border-radius:10px;">
                 🎧 Open Spotify Playlist
             </button>
         </a>
@@ -166,31 +204,5 @@ if st.button("🎬 Detect Mood via Webcam"):
         unsafe_allow_html=True
     )
 
-# ================== Manual Mood Selection ==================
-st.write("### Or select your mood manually:")
-cols = st.columns(len(mood_playlists))
-
-for idx, (mood, url) in enumerate(mood_playlists.items()):
-    with cols[idx]:
-        if st.button(mood):
-            st.success(f"🎶 You chose {mood} mode!")
-            st.markdown(f"<div class='emoji-container'>{emoji_map[mood]}</div>", unsafe_allow_html=True)
-            st.markdown(f"<h3 style='text-align:center;'>{message_map[mood]}</h3>", unsafe_allow_html=True)
-
-            st.markdown(
-                f"""
-                <a href="{url}" target="_blank">
-                    <button style="
-                        background:#1DB954;
-                        color:white;
-                        padding:10px 18px;
-                        font-size:16px;
-                        border:none;
-                        border-radius:8px;
-                        cursor:pointer;">
-                        🎶 Play on Spotify
-                    </button>
-                </a>
-                """,
-                unsafe_allow_html=True
-            )
+if not OPENCV_AVAILABLE:
+    st.info("📷 Webcam not supported in cloud mode. Please select a mood above.")
